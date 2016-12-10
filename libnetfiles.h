@@ -4,6 +4,7 @@
 #define PORT  9583 
 #define TRUE    1
 #define FALSE   0
+#define FAILURE -1
 #define SUCCESS 0
 #define FAIL -1
 #define BUFFER_SIZE  256 

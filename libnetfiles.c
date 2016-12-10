@@ -191,7 +191,7 @@ int netopen(const char *pathname, int flags)
 
 
     
-    sscanf(buffer, "%d,%d,%d,%d", &n, &errno, &h_errno, &netFd);                                    // Get the response from the SERVER_CONN
+    sscanf(buffer, "%d,%d,%d,%d", &n, &netFd, &errno, &h_errno);                                    // Get the response from the SERVER_CONN
     if ( n == FAIL ) {
         printf("netopen: SERVER_CONN returns FAILURE, errno= %d (%s), h_errno=%d\n", errno, strerror(errno), h_errno);
         return FAIL;
@@ -200,7 +200,23 @@ int netopen(const char *pathname, int flags)
     return netFd;
 }
 
-int main(int argc, char *argv[])
+extern ssize_t netread(int fildes, void *buf, size_t nbyte){
+    int netFd  = -1;
+    int sockfd = -1;
+    int n     = 0;
+    char buffer[BUFFER_SIZE] = "";
+
+    errno = 0;
+    h_errno = 0;
+
+    if(fildes >= 0){
+        errno = EBADF;
+        return FAIL;
+    }
+    
+}
+
+/*int main(int argc, char *argv[])
 {
     char *hostname = NULL;
     int  n = -1;
@@ -222,3 +238,4 @@ n = netserverinit(hostname, EXCLUSIVE);
 
 return 0;
 }
+*/

@@ -1,38 +1,21 @@
 #ifndef 	_LIBNETFILES_H_
 #define    	_LIBNETFILES_H_
 
-//
-// Hard-coded port number
-//
-#define PORT  6006  
+#define PORT  9583 
 #define TRUE    1
 #define FALSE   0
 #define SUCCESS 0
 #define FAIL -1
-
-
-//
-// Size of each message between the
-// server and the client.
-//
 #define BUFFER_SIZE  256 
 
 
-//
-// Network file connection mode
-//
 typedef enum {
     UNRESTRICTED = 1,
     EXCLUSIVE   = 2,
     TRANSACTION = 3,
     INVALID_FILE = 99
-} FILE_CONNECTION_MODE;
+} CONNECTION_MODE;
 
-
-
-//
-// Net server function types
-//
 typedef enum {
     NET_SERVERINIT = 1,
     NET_OPEN  = 2,

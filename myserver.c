@@ -39,6 +39,8 @@ int deleteFD( int fd );
 int canOpen(fileDescriptor *fdPtr );
 void *workerThread( void *newSocket_FD );
 int ex_netopen( fileDescriptor *fdPtr );
+int ex_netread(int fd, ssize_t nbyte, char * readBuffer);
+int ex_netwrite(int fd, char * readBuffer, ssize_t nbyte);
 
 int main(int argc, char *argv[])
 {
@@ -50,7 +52,7 @@ int main(int argc, char *argv[])
     int clilen = sizeof(cli_addr);
     pthread_t    Worker_thread_ID = 0;
     initFDTable();
-    char buffer[BUFFER_SIZE] = "";
+    char buffer[5000] = "";
  	sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         fprintf(stderr,"netfileserver: socket() failed, errno= %d\n", errno);
@@ -60,7 +62,7 @@ int main(int argc, char *argv[])
 	bzero((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(PORT);
+    serv_addr.sin_port = htons(atoi(argv[1]));
     if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
     {
         fprintf(stderr,"netfileserver: bind() failed, errno= %d\n", errno);
@@ -110,8 +112,7 @@ while(terminate == FALSE){
 
 }
 
-void *workerThread(void *newSocket_FD)
-{
+void *workerThread(void *newSocket_FD){
     int n = 0;
     int fd = -1;
     int *sockfd = newSocket_FD;
@@ -121,40 +122,43 @@ void *workerThread(void *newSocket_FD)
     NET_FUNCTION_TYPE netFunc = INVALID;
 
     n = pthread_detach(pthread_self());
+    n = read(*sockfd, buffer, 500 -1);
 
-
-    n = read(*sockfd, buffer, BUFFER_SIZE -1);
     if ( n < 0 ) {
         fprintf(stderr,"Thread: %lu failed to read from socket\n", pthread_self());
         if ( *sockfd != 0 ) close(*sockfd);
 		pthread_exit(NULL);
     }
-    else 
-    {
+    else {
         printf("Thread: %lu received \"%s\"\n", pthread_self(), buffer);
     }
 
 /*************Decode the incoming message. Find Out What Operation to Do ******************/
-    
+    int * nbyte = malloc(sizeof(int));
+    char readBuffer [500];
     sscanf(buffer, "%u,", &netFunc);
- 
-    switch (netFunc)
-    {
+   
+    switch (netFunc){
+
+/**********************************************************************************************************************************************************
+**                                                              NET_SERVERINIT                                                                           **
+** netserverinit command from client client to make connection to this server. The Server will respond with SUCCESS (1) No Errors From Server Side       **
+**********************************************************************************************************************************************************/        
+
         case NET_SERVERINIT:
-            
             sprintf(buffer, "%d,0,0,0", SUCCESS);
             printf("Thread : %lu responding with \"%s\"\n", pthread_self(), buffer);
             break;
+
+
 /**********************************************************************************************************************************************************
 **                                                              NET_OPEN                                                                                 **
-**                                                                                                                                                       **
 ** Attempts to Open a File on the Server- Returns to Client a file descriptor or -1 if an error occurred (in which case errno is set and given to client)**
-**                                                                                                                                                       **
 ** REQUIRED ERRORS : EACCES(PERMISSION DENIED), EINTR(INTERUPTED FUNCTION CALL), EISDIR(IS A DIRECTORY), ENOENT(NO SUCH FILE), EROFS(READ ONLY FILE)     **
 ** OPTIONAL ERRORS : ENFILE (To Many FIles Open), EWOULDBLOCK (Operation Would Block), EPERM (Operation Not Permited)                                    **
 **********************************************************************************************************************************************************/
         case NET_OPEN:
-           printf("Thread : %lu received \"netopen\"\n", pthread_self());
+            printf("Thread : %lu received \"netopen\"\n", pthread_self());
                                                                                             // Incoming message format is:  2,connectionMode,fileFlags,filePath
             newFd = malloc(sizeof(fileDescriptor));
 
@@ -163,31 +167,70 @@ void *workerThread(void *newSocket_FD)
             n = ex_netopen(newFd);
             printf("Thread : %lu ex_netopen returns fd %d\n", pthread_self(), n);
                                                                                             // Compose a response message.  The format is: result,errno,h_errno,fdPtr
-            if ( n == FAIL) {
+            if (n == FAIL) {
                 sprintf(buffer, "%d,%d,%d,%d", FAIL, n, errno, h_errno);
             } 
             else {
                 sprintf(buffer, "%d,%d,%d,%d", SUCCESS, n, errno, h_errno);
             }
             printf("Thread : %lu responding with \"%s\"\n", pthread_self(), buffer);
-            free( newFd );
+            free(newFd);
             break;
 
+/**********************************************************************************************************************************************************
+**                                                              NET_READ                                                                                 **
+** Upon recieving command from client. Server attempts to read the number of bytes passed by the clients given a file descriptor resuts the number of    **
+** bytes actually read, or returns -1 if failed and sets errno to indicate Errors                                                                        **
+** ERRORS : ETIMEDOUT, EBADF, ECONNRESET                                                                                                                 **
+**********************************************************************************************************************************************************/
         case NET_READ:
             printf("Thread : %lu received \"netread\"\n", pthread_self());
+
+            sscanf(buffer, "%u,%d, %d", &netFunc, &fd, nbyte);
+            printf("%s\n", buffer);
+            
+            n = ex_netread(fd, *nbyte, readBuffer);
+            printf("Makes it here\n");
+            if(n==FAIL){
+                sprintf(buffer, "%d,%d,%d,%d", FAIL, errno, h_errno, n);
+            }
+            else{
+                readBuffer[n]='\0';
+                 sprintf(buffer, "%d,%d,%d,%s", SUCCESS, n, errno, readBuffer);
+            }
             break;
 
-        case NET_WRITE:
-            //n = findFD(fd);
-
+/**********************************************************************************************************************************************************
+**                                                              NET_WRITE                                                                                **
+** Upon recieving command from client. Server attempts to write the number of bytes passed by the clients given a file descriptor resuts the number of   **
+** bytes actually read, or returns -1 if failed and sets errno to indicate Errors                                                                        **
+** ERRORS : ETIMEDOUT, EBADF, ECONNRESET                                                                                                                 **
+**********************************************************************************************************************************************************/
+        case NET_WRITE: 
             printf("Thread : %lu received \"netwrite\"\n", pthread_self());
+            sscanf(buffer, "%u,%d, %d", &netFunc, &fd, nbyte);
+            n = ex_netwrite(fd, readBuffer, *nbyte);
+            if(n==FAIL){
+                sprintf(buffer, "%d,%d,%d", FAIL, errno, h_errno);
+                printf("ex_netwrite Failed with %d\n",n);
+            }
+            else{
+                 sprintf(buffer, "%d,%d,%d", SUCCESS, n, errno);
+                  printf("ex_netwrite succeeded with %d\n",n);
+            }
             break;
-
+/**********************************************************************************************************************************************************
+**                                                              NET_CLOSE                                                                                **
+** Upon recieving command from client. Server attempts to close the File of the file descriptor given by client. Sends SUCCESS if succeed else Sends     **
+** failure along with errno and h_errno                                                                                                                  **
+** ERRORS : ERRORS, EBADF                                                                                                               **
+**********************************************************************************************************************************************************/
         case NET_CLOSE:
                                                                                             // Incoming message format is: 5,fd,0,0
-            sscanf(buffer, "%u,%d", &netFunc, &fd); 
+            sscanf(buffer, "%u,%d", &netFunc, &fd);
+            printf("FD FOR CLOSE : %d\n", fd); 
             n = deleteFD(fd);                                                             // Server Response : result, errno, h_errno, fdPtr
-            if ( n == FAIL) {
+            if (n == FAIL) {
                 sprintf(buffer, "%d,%d,%d,%d", FAIL, errno, h_errno, n);
             } 
             else {
@@ -197,24 +240,26 @@ void *workerThread(void *newSocket_FD)
             break;
 
         case INVALID:
+            break;
+
         default:
             printf("Thread : %lu received invalid net function\n", pthread_self());
             break;
-    }
 
-    n = write(*sockfd, buffer, strlen(buffer) );                                                // Send Server response back to client
+}    n = write(*sockfd, buffer, (strlen(buffer)+1) );                                                // Send Server response back to client
     if ( n < 0 ) {
         fprintf(stderr,"Thread : %lu fails to write to socket\n", pthread_self());
     }
     
-    if ( *sockfd != 0 ) close(*sockfd);
-    pthread_exit( NULL );
-}
+    //if ( *sockfd != 0) close(*sockfd);
+    pthread_exit(NULL);
 
+}
 int ex_netopen(fileDescriptor *newFd ){
     int n = -1;
-    struct stat sb;
-    if (canOpen(newFd) == FALSE ) return FAIL;
+    if (canOpen(newFd) == FALSE ){
+        return FAIL;
+    }
     newFd->localFD = open(newFd->filePath, newFd->fileFlags);
     if(newFd->localFD <0) return FAIL;
     n = createFD(newFd);
@@ -225,6 +270,7 @@ int ex_netopen(fileDescriptor *newFd ){
 
     return n;  
 }
+
 
 int canOpen(fileDescriptor *newFd ){
     int i = 0;
@@ -253,31 +299,6 @@ int canOpen(fileDescriptor *newFd ){
     return TRUE;
 }
 
-    
-int ex_netwrite(fileDescriptor *newFd ){
-    int n = -1;
-
-    n = open(newFd->filePath, newFd->fileFlags);
-    if ( n < 0 ) {
-        // File open failed
-        printf("Open File Failed\n");
-        return FAIL;
-    }
-
-    close(n);
-    printf("opened and closed \"%s\"\n", newFd->filePath);
-
-    if (canOpen(newFd) == FALSE ) return FAIL;
-    
-    n = createFD(newFd);
-    if (n == FAIL) {
-        errno = ENFILE;
-        return FAIL;
-    } 
-
-    return n;  
-}
-
 
 void initFDTable(){
     int i = 0;
@@ -297,6 +318,7 @@ int createFD(fileDescriptor *newFd ){
 
     for (i=0; i < FD_TABLE_SIZE; i++) {
         if (FD_Table[i].localFD == 0 ){
+            FD_Table[i].localFD = newFd->localFD;
             FD_Table[i].netFD = (-5 * (i+1));
             FD_Table[i].fMode = newFd->fMode;        
             FD_Table[i].fileFlags = newFd->fileFlags;        
@@ -309,7 +331,7 @@ int createFD(fileDescriptor *newFd ){
 
 int deleteFD(int netFD){
       int i=(netFD/-5)-1;
-    if(i<FD_TABLE_SIZE){
+    if(i<FD_TABLE_SIZE && i>=0){
         FD_Table[i].localFD = 0;
         FD_Table[i].netFD = 0;  
         FD_Table[i].fMode = INVALID_FILE;        
@@ -321,3 +343,45 @@ int deleteFD(int netFD){
     errno = EBADF;
     return FAIL;
 }
+
+int ex_netread(int fd, ssize_t nbyte, char *readBuffer){
+    int n = -1;
+   int i=(fd/-5)-1;
+   printf("Makes it here netread\n");
+    printf("LocalFD: %d\n", FD_Table[i].localFD);
+    if(i<FD_TABLE_SIZE && i>=0){
+        
+        n = read(FD_Table[i].localFD, readBuffer, (ssize_t)nbyte);
+        printf("return of ex_netread %d\n", n);
+        if(n>=0) {
+         return n;
+         printf("Makes it past read\n");
+        }
+    }
+    
+    errno = EBADF;
+    return FAIL;
+
+}
+
+int ex_netwrite(int fd, char * readBuffer, ssize_t nbyte){
+    int n = -1;
+   int i=(fd/-5)-1;
+   printf("Makes it here netwrite\n");
+    printf("LocalFD: %d\n", FD_Table[i].localFD);
+    if(i<FD_TABLE_SIZE && i>=0){
+       
+        n = write(FD_Table[i].localFD, readBuffer,(ssize_t)nbyte);
+        printf("return of ex_netwrite%d\n", n);
+        if(n>=0) {
+         return n;
+         printf("Makes it past read\n");
+        }
+    }
+    
+    errno = EBADF;
+    return FAIL;
+
+}
+
+

@@ -56,7 +56,11 @@ int getSock( const char * hostname ){
 
     return sockfd;
 }
-
+/**********************************************************************************************************************************************************
+**                                                              NET_SERVERINIT                                                                           **
+** netserverinit makes a socket and connection given a hostname. The Server will respond with SUCCESS (1) No Errors From Server Side                     **
+** Client Errors; HOST_NOT_FOUND and INVALID_FILE_MODE                                                                                                   **
+**********************************************************************************************************************************************************/
 
 int netserverinit(char *hostname, int filemode){
     int n = 0;
@@ -200,7 +204,19 @@ int netopen(const char *pathname, int flags)
     return netFd;
 }
 
-extern ssize_t netread(int fildes, void *buf, size_t nbyte){
+/**********************************************************************************************************************************************************
+**                                                              NET_CLOSE                                                                                **
+** The client exectuting netclose will create and socket and connect to server and a file descriptor. The server will close a file and return 0 on       **
+** bytes actually read, or returns -1 if failed and sets errno to indicate Errors                                                                        **
+** ERRORS : ETIMEDOUT, EBADF, ECONNRESET                                                                                                                 **
+**********************************************************************************************************************************************************/
+
+extern int netclose(int fd){
+    
+    if(fd >= 0){
+        errno = EBADF;
+        return FAILURE;
+    }
     int netFd  = -1;
     int sockfd = -1;
     int n     = 0;
@@ -209,33 +225,154 @@ extern ssize_t netread(int fildes, void *buf, size_t nbyte){
     errno = 0;
     h_errno = 0;
 
-    if(fildes >= 0){
-        errno = EBADF;
+    sockfd = getSock(clientConn.hostname);
+    if (sockfd < 0) {
+        errno = 0;
+        h_errno = HOST_NOT_FOUND;
+        fprintf(stderr, "netopen: host not found, %s\n", clientConn.hostname);
         return FAIL;
     }
+                                                                                                // netCmd,connectionMode,fileOpenFlags,pathname
+    bzero(buffer, BUFFER_SIZE);
+    sprintf(buffer, "%d,%d", NET_CLOSE, fd);
+
+    n = write(sockfd, buffer, strlen(buffer));
+
+    if ( n < 0 ) {
+
+        h_errno = ECOMM;  
+        printf("Failed to write to SERVER_CONN");
+        return FAIL;
+    }
+
+    bzero(buffer, BUFFER_SIZE);
+    n = read(sockfd, buffer, BUFFER_SIZE-1);                                                    // Reads result, *(int *) 
+    printf("Ends up here%d\n", n);
+    if ( n < 0 ) {
+        h_errno = ECOMM;  
+        printf("Failed to read from socket\n");
+        if ( sockfd != 0 ) close(sockfd);
+        return FAIL;
+    }
+
+    close(sockfd); 
+
+    sscanf(buffer, "%d,%d,%d", &n, &errno, &h_errno);  
+
+    return n; 
+
+    
+}
+extern ssize_t netread(int fildes, void *buf, size_t nbyte){
+    int netFd  = -1;
+    int sockfd = -1;
+    int n     = 0;
+    char * buffer = (char *)buf;
+    char stringBuf[nbyte+1];
+    errno = 0;
+    h_errno = 0;
+    printf("Makes it here netread\n");
+    if(fildes >= 0){
+        errno = EBADF;
+        return FAILURE;
+    }
+
+     errno = 0;
+    h_errno = 0;
+
+    sockfd = getSock(clientConn.hostname);
+    if (sockfd < 0) {
+        errno = 0;
+        h_errno = HOST_NOT_FOUND;
+        fprintf(stderr, "netopen: host not found, %s\n", clientConn.hostname);
+        return FAIL;
+    }
+                                                                                                // netCmd,connectionMode,fileOpenFlags,pathname
+    bzero(buffer, (nbyte + (2 * sizeof(int))));
+    sprintf(buffer, "%u,%d,%d", NET_READ, fildes, (int)nbyte);
+
+    n = write(sockfd, buffer, strlen(buffer));
+
+    if ( n < 0 ) {
+
+        h_errno = ECOMM;  
+        printf("Failed to write to SERVER_CONN");
+        return FAIL;
+    }
+
+    bzero(buffer,  4000);
+    n = read(sockfd, buffer, (nbyte +1+ (3*sizeof(int))));                                                    // Reads result, *(int *) 
+    printf("Ends up here%d\n", n);
+    if ( n < 0 ) {
+        h_errno = ECOMM;  
+        printf("Failed to read from socket\n");
+        if ( sockfd != 0 ) close(sockfd);
+        return FAIL;
+    }
+
+    close(sockfd); 
+
+    sscanf(buffer, "%d,%d,%d,%s", &n, &netFd, &h_errno, stringBuf);  
+    if(n == FAIL) return FAIL;
+    else printf("String from Read : %s", stringBuf);
+
+    return netFd; 
     
 }
 
-/*int main(int argc, char *argv[])
-{
-    char *hostname = NULL;
-    int  n = -1;
-    int  fd = -1;
+extern ssize_t netwrite(int fildes, const void *buf, size_t nbyte){
 
-
-    if (argc < 2) {
-        fprintf(stderr, "Usage: %s hostname\n", argv[0]);
-        exit(-1);
+    int netFd  = -1;
+    int sockfd = -1;
+    int n     = 0;
+    char * buffer = (char *)buf;
+    char stringBuf[nbyte+1];
+    errno = 0;
+    h_errno = 0;
+    printf("Makes it here netread\n");
+    if(fildes >= 0){
+        errno = EBADF;
+        return FAILURE;
     }
 
-    hostname = argv[1];
-if(gethostbyname(hostname)==NULL) printf("What the fuck");
-else printf("seems fine \n");
+     errno = 0;
+     h_errno = 0;
 
-n = netserverinit(hostname, EXCLUSIVE);
+    sockfd = getSock(clientConn.hostname);
+    if (sockfd < 0) {
+        errno = 0;
+        h_errno = HOST_NOT_FOUND;
+        fprintf(stderr, "netopen: host not found, %s\n", clientConn.hostname);
+        return FAIL;
+    }
+                                                                                                // netCmd,connectionMode,fileOpenFlags,pathname
+    bzero(buffer, (nbyte + (2 * sizeof(int))));
+    sprintf(buffer, "%u,%d,%d", NET_WRITE, fildes, (int)nbyte);
 
+    n = write(sockfd, buffer, strlen(buffer));
 
+    if ( n < 0 ) {
 
-return 0;
+        h_errno = ECOMM;  
+        printf("Failed to write to SERVER_CONN");
+        return FAIL;
+    }
+
+    bzero(buffer,  4000);
+    n = read(sockfd, buffer, (nbyte +1+ (3*sizeof(int))));                                                    // Reads result, *(int *) 
+    printf("Ends up here%d\n", n);
+    if ( n < 0 ) {
+        h_errno = ECOMM;  
+        printf("Failed to read from socket\n");
+        if ( sockfd != 0 ) close(sockfd);
+        return FAIL;
+    }
+
+    close(sockfd); 
+
+    sscanf(buffer, "%d,%d,%d", &n, &netFd, &errno);  
+    if(n == FAIL) return FAIL;
+   
+    return netFd; 
+
 }
-*/

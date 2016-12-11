@@ -1,7 +1,7 @@
 #ifndef 	_LIBNETFILES_H_
 #define    	_LIBNETFILES_H_
 
-#define PORT  9583 
+#define PORT  8002
 #define TRUE    1
 #define FALSE   0
 #define FAILURE -1
@@ -27,24 +27,12 @@ typedef enum {
 } NET_FUNCTION_TYPE;
 
 
-
-
-
-
-
-/////////////////////////////////////////////////////////////
-//
-// Function declarations 
-//
-/////////////////////////////////////////////////////////////
-
 extern int netserverinit(char *hostname, int filemode);
 extern int netopen(const char *pathname, int flags);
 extern ssize_t netread(int fildes, void *buf, size_t nbyte); 
 extern ssize_t netwrite(int fildes, const void *buf, size_t nbyte); 
 extern int netclose(int fd);
 int getSock(const char * hostname);
-
 
 
 #endif    // _LIBNETFILES_H_

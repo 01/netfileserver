@@ -370,7 +370,10 @@ int ex_netwrite(int fd, char * readBuffer, ssize_t nbyte){
    printf("Makes it here netwrite\n");
     printf("LocalFD: %d\n", FD_Table[i].localFD);
     if(i<FD_TABLE_SIZE && i>=0){
-       
+        if(FD_Table.fileFlags==O_RDONLY){
+            errno = EBADF;
+            return FAIL;
+        }
         n = write(FD_Table[i].localFD, readBuffer,(ssize_t)nbyte);
         printf("return of ex_netwrite%d\n", n);
         if(n>=0) {

@@ -1,17 +1,19 @@
+#Variable definition
+
+CC = gcc
+CCFLAGS = -Wall
+
 #rules definition
 
-all : libnetfiles myserver
+all : libnetfiles netfileserver
 
-myserver : myserver.c libnetfiles.h 
-	$(CC) $(CCFLAGS) -pthread -o myserver myserver.c
+libnetfiles: libnetfiles.h libnetfiles.c tester.c
+	$(CC) $(CCFLAGS) -o client libnetfiles.c tester.c
 
-libnetfiles: libnetfiles.c libnetfiles.h
-	$(CC) $(CCFLAGS) -o libnetfiles libnetfiles.c
-
-tester : libnetfiles.c libnetfiles.h myserver.c tester.c
-	$(CC) $(CCFLAGS) -o tester tester.c libnetfiles.c
+netfileserver: libnetfiles.h netfileserver.c
+	$(CC) $(CCFLAGS) -pthread -o server netfileserver.c
 
 #This rule cleans up executable file
 
 clean: 
-	rm -f myserver libnetfiles
+	rm -f client server

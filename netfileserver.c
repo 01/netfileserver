@@ -15,84 +15,6 @@
 
 
 #define FD_TABLE_SIZE   5  
-#define QUEUE_TABLE_SIZE 100
-
-/*
-
-#define QUEUE_SIZE 5
-
-
-char queue[QUEUE_SIZE][BUFFER_SIZE];
-int front = 0;
-int rear = -1;
-int numElements = 0;
-
-int isEmpty(){
-
-	if(numElements == 0){
-		return 1;
-	}
-	else{
-		return 0;
-	}
-}
-
-int isFull(){
-
-	if(numElements == QUEUE_SIZE){
-		return 1;
-	}
-	else{
-		return 0;
-	}
-}
-
-void enqueue(char* element){
-
-	if(isFull()){
-		printf("Queue is full.\n");
-	}
-	else{
-		if(rear == QUEUE_SIZE-1){
-			rear = -1;
-		}
-		
-		strcpy(queue[++rear], element);
-		numElements++;
-	}
-
-}
-
-char* dequeue(){
-
-	if(isEmpty()){
-		printf("Queue is empty.\n");
-	}
-	else{
-		char data[BUFFER_SIZE];
-		strcpy(arr, queue[front++];
-	
-		if(front == QUEUE_SIZE){
-			front = 0;
-		}
-	
-		numElements--;
-		return data;
-	}
-}
-
-*/
-
-
-typedef struct{
-	char filePath[256];
-	int ticketNumber;
-	int front;
-} queue;
-
-queue queue_Table[QUEUE_TABLE_SIZE];
-int numQueues = 0;
-
 
 static int  terminate = FALSE;
 void *workerThread( void *newSocket_FD );
@@ -140,7 +62,7 @@ int main(int argc, char *argv[])
 	bzero((char *) &serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(atoi(argv[1]));
+    serv_addr.sin_port = htons(PORT);
     if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
     {
         fprintf(stderr,"netfileserver: bind() failed, errno= %d\n", errno);
@@ -195,12 +117,14 @@ void *workerThread(void *newSocket_FD){
     int fd = -1;
     int *sockfd = newSocket_FD;
     fileDescriptor  *newFd = NULL;
+    
+    int write_buffer_length = 0;
 
     char buffer[BUFFER_SIZE] = "";
     NET_FUNCTION_TYPE netFunc = INVALID;
 
     n = pthread_detach(pthread_self());
-    n = read(*sockfd, buffer, 500 -1);
+    n = read(*sockfd, buffer, BUFFER_SIZE -1);
 
     if ( n < 0 ) {
         fprintf(stderr,"Thread: %lu failed to read from socket\n", pthread_self());
@@ -215,6 +139,7 @@ void *workerThread(void *newSocket_FD){
     int * nbyte = malloc(sizeof(int));
     char readBuffer [500];
     sscanf(buffer, "%u,", &netFunc);
+    printf("function type: %d\n", netFunc);
    
     switch (netFunc){
 
@@ -242,65 +167,15 @@ void *workerThread(void *newSocket_FD){
 
             sscanf(buffer, "%u,%d,%d,%s", &netFunc, (int *)&(newFd->fMode), &(newFd->fileFlags), newFd->filePath);
 
-	    
-
-	    // operation cannot currently be serviced, so it enters a queue
-	    if (canOpen(newFd) == FALSE ){
-
-		int queuePosition;
-		int queueExists = FALSE;
-		int i;
-		for(i=0; i<numQueues; i++){
-
-			if( strcmp(newFd->filePath, queue_Table[i].filePath) == 0 ){
-				queuePosition = queue_Table[i].ticketNumber;
-				queue_Table[i].ticketNumber++;
-				queueExists = TRUE;
-				break;
-			}
-		}
-		// operation enters existing queue for file
-		if(queueExists){
-			
-			while(TRUE){
-				
-				sleep(2);
-
-				if( queuePosition == queue_Table[i].front && canOpen(newFd) ){
-					queue_Table[i].front++;
-					break;
-				}
-			}
-		}
-		// operation enters new queue for file
-		else{
-
-			strcpy(queue_Table[numQueues].filePath, newFd->filePath);
-			queue_Table[numQueues].ticketNumber = 2;
-			queue_Table[numQueues].front = 1;
-			int temp = numQueues;
-			numQueues++;
-
-			while(TRUE){
-				
-				sleep(2);
-
-				if( canOpen(newFd) ){
-					queue_Table[temp].front++;
-					break;
-				}
-			}
-		}
-
-	    }
-
             n = ex_netopen(newFd);
             printf("Thread : %lu ex_netopen returns fd %d\n", pthread_self(), n);
-                                                                                            // Compose a response message.  The format is: result,errno,h_errno,fdPtr
+                                                                                            // Compose a response message.  The format is: success/fail, return result,errno,h_errno
             if (n == FAIL) {
+		bzero(buffer, BUFFER_SIZE);
                 sprintf(buffer, "%d,%d,%d,%d", FAIL, n, errno, h_errno);
             } 
             else {
+		bzero(buffer, BUFFER_SIZE);
                 sprintf(buffer, "%d,%d,%d,%d", SUCCESS, n, errno, h_errno);
             }
             printf("Thread : %lu responding with \"%s\"\n", pthread_self(), buffer);
@@ -318,15 +193,18 @@ void *workerThread(void *newSocket_FD){
 
             sscanf(buffer, "%u,%d, %d", &netFunc, &fd, nbyte);
             printf("%s\n", buffer);
+	    printf("%u %d %d\n", netFunc, fd, *nbyte);
             
             n = ex_netread(fd, *nbyte, readBuffer);
             printf("Makes it here\n");
+	    printf("Buffer: %s\n", readBuffer);
             if(n==FAIL){
                 sprintf(buffer, "%d,%d,%d,%d", FAIL, errno, h_errno, n);
             }
             else{
                 readBuffer[n]='\0';
                  sprintf(buffer, "%d,%d,%d,%s", SUCCESS, n, errno, readBuffer);
+		printf("buffer: %s\n", buffer);
             }
             break;
 
@@ -338,7 +216,12 @@ void *workerThread(void *newSocket_FD){
 **********************************************************************************************************************************************************/
         case NET_WRITE: 
             printf("Thread : %lu received \"netwrite\"\n", pthread_self());
-            sscanf(buffer, "%u,%d, %d", &netFunc, &fd, nbyte);
+            sscanf(buffer, "%u,%d,%d,%d", &netFunc, &fd, nbyte, &write_buffer_length);
+	    printf("%u %d %d %d\n", netFunc, fd, *nbyte, write_buffer_length);
+	    
+	    strncpy(readBuffer, buffer+strlen(buffer)-write_buffer_length, *nbyte);
+	    printf("%d\n", strlen(buffer));
+	    printf("readBuffer: %s\n", readBuffer);
             n = ex_netwrite(fd, readBuffer, *nbyte);
             if(n==FAIL){
                 sprintf(buffer, "%d,%d,%d", FAIL, errno, h_errno);
@@ -377,6 +260,7 @@ void *workerThread(void *newSocket_FD){
             break;
 
 }    n = write(*sockfd, buffer, (strlen(buffer)+1) );                                                // Send Server response back to client
+    printf("value of n: %d\n", n);
     if ( n < 0 ) {
         fprintf(stderr,"Thread : %lu fails to write to socket\n", pthread_self());
     }
@@ -480,7 +364,10 @@ int ex_netread(int fd, ssize_t nbyte, char *readBuffer){
    printf("Makes it here netread\n");
     printf("LocalFD: %d\n", FD_Table[i].localFD);
     if(i<FD_TABLE_SIZE && i>=0){
-        
+        if(FD_Table[i].fileFlags==O_WRONLY){
+            errno = EBADF;
+            return FAIL;
+        }
         n = read(FD_Table[i].localFD, readBuffer, (ssize_t)nbyte);
         printf("return of ex_netread %d\n", n);
         if(n>=0) {

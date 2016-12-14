@@ -206,6 +206,7 @@ void *workerThread(void *newSocket_FD){
                  sprintf(buffer, "%d,%d,%d,%s", SUCCESS, n, errno, readBuffer);
 		//printf("buffer: %s\n", buffer);
             }
+	    free(nbyte);
             break;
 
 /**********************************************************************************************************************************************************
@@ -231,6 +232,7 @@ void *workerThread(void *newSocket_FD){
                  sprintf(buffer, "%d,%d,%d", SUCCESS, n, errno);
                   printf("ex_netwrite succeeded with %d\n",n);
             }
+	    free(nbyte);
             break;
 /**********************************************************************************************************************************************************
 **                                                              NET_CLOSE                                                                                **
@@ -351,6 +353,10 @@ int createFD(fileDescriptor *newFd ){
 }
 
 int deleteFD(int netFD){
+
+	int n = close(FD_Table[(netFD/-5)-1].localFD);
+        if(n <0) return FAIL;
+
       int i=(netFD/-5)-1;
     if(i<FD_TABLE_SIZE && i>=0){
         FD_Table[i].localFD = 0;

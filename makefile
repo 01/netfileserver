@@ -7,8 +7,8 @@ CCFLAGS = -Wall
 
 all : libnetfiles netfileserver
 
-libnetfiles: libnetfiles.h libnetfiles.c tester.c
-	$(CC) $(CCFLAGS) -o client libnetfiles.c tester.c
+libnetfiles: libnetfiles.h libnetfiles.c autotester.c
+	$(CC) $(CCFLAGS) -o client libnetfiles.c autotester.c
 
 netfileserver: libnetfiles.h netfileserver.c
 	$(CC) $(CCFLAGS) -pthread -o server netfileserver.c

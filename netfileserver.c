@@ -14,7 +14,7 @@
 #include "libnetfiles.h"
 
 
-#define FD_TABLE_SIZE   5  
+#define FD_TABLE_SIZE   100
 
 static int  terminate = FALSE;
 void *workerThread( void *newSocket_FD );
@@ -139,7 +139,7 @@ void *workerThread(void *newSocket_FD){
     int * nbyte = malloc(sizeof(int));
     char readBuffer [500];
     sscanf(buffer, "%u,", &netFunc);
-    printf("function type: %d\n", netFunc);
+    //printf("function type: %d\n", netFunc);
    
     switch (netFunc){
 
@@ -161,14 +161,14 @@ void *workerThread(void *newSocket_FD){
 ** OPTIONAL ERRORS : ENFILE (To Many FIles Open), EWOULDBLOCK (Operation Would Block), EPERM (Operation Not Permited)                                    **
 **********************************************************************************************************************************************************/
         case NET_OPEN:
-            printf("Thread : %lu received \"netopen\"\n", pthread_self());
+            //printf("Thread : %lu received \"netopen\"\n", pthread_self());
                                                                                             // Incoming message format is:  2,connectionMode,fileFlags,filePath
             newFd = malloc(sizeof(fileDescriptor));
 
             sscanf(buffer, "%u,%d,%d,%s", &netFunc, (int *)&(newFd->fMode), &(newFd->fileFlags), newFd->filePath);
 
             n = ex_netopen(newFd);
-            printf("Thread : %lu ex_netopen returns fd %d\n", pthread_self(), n);
+            //printf("Thread : %lu ex_netopen returns fd %d\n", pthread_self(), n);
                                                                                             // Compose a response message.  The format is: success/fail, return result,errno,h_errno
             if (n == FAIL) {
 		bzero(buffer, BUFFER_SIZE);
@@ -189,22 +189,22 @@ void *workerThread(void *newSocket_FD){
 ** ERRORS : ETIMEDOUT, EBADF, ECONNRESET                                                                                                                 **
 **********************************************************************************************************************************************************/
         case NET_READ:
-            printf("Thread : %lu received \"netread\"\n", pthread_self());
+            //printf("Thread : %lu received \"netread\"\n", pthread_self());
 
             sscanf(buffer, "%u,%d, %d", &netFunc, &fd, nbyte);
-            printf("%s\n", buffer);
-	    printf("%u %d %d\n", netFunc, fd, *nbyte);
+            //printf("%s\n", buffer);
+	    //printf("%u %d %d\n", netFunc, fd, *nbyte);
             
             n = ex_netread(fd, *nbyte, readBuffer);
-            printf("Makes it here\n");
-	    printf("Buffer: %s\n", readBuffer);
+            //printf("Makes it here\n");
+	    //printf("Buffer: %s\n", readBuffer);
             if(n==FAIL){
                 sprintf(buffer, "%d,%d,%d,%d", FAIL, errno, h_errno, n);
             }
             else{
                 readBuffer[n]='\0';
                  sprintf(buffer, "%d,%d,%d,%s", SUCCESS, n, errno, readBuffer);
-		printf("buffer: %s\n", buffer);
+		//printf("buffer: %s\n", buffer);
             }
             break;
 
@@ -215,13 +215,13 @@ void *workerThread(void *newSocket_FD){
 ** ERRORS : ETIMEDOUT, EBADF, ECONNRESET                                                                                                                 **
 **********************************************************************************************************************************************************/
         case NET_WRITE: 
-            printf("Thread : %lu received \"netwrite\"\n", pthread_self());
+            //printf("Thread : %lu received \"netwrite\"\n", pthread_self());
             sscanf(buffer, "%u,%d,%d,%d", &netFunc, &fd, nbyte, &write_buffer_length);
-	    printf("%u %d %d %d\n", netFunc, fd, *nbyte, write_buffer_length);
+	    //printf("%u %d %d %d\n", netFunc, fd, *nbyte, write_buffer_length);
 	    
 	    strncpy(readBuffer, buffer+strlen(buffer)-write_buffer_length, *nbyte);
-	    printf("%d\n", strlen(buffer));
-	    printf("readBuffer: %s\n", readBuffer);
+	    //printf("%d\n", strlen(buffer));
+	    //printf("readBuffer: %s\n", readBuffer);
             n = ex_netwrite(fd, readBuffer, *nbyte);
             if(n==FAIL){
                 sprintf(buffer, "%d,%d,%d", FAIL, errno, h_errno);
@@ -241,7 +241,7 @@ void *workerThread(void *newSocket_FD){
         case NET_CLOSE:
                                                                                             // Incoming message format is: 5,fd,0,0
             sscanf(buffer, "%u,%d", &netFunc, &fd);
-            printf("FD FOR CLOSE : %d\n", fd); 
+            //printf("FD FOR CLOSE : %d\n", fd); 
             n = deleteFD(fd);                                                             // Server Response : result, errno, h_errno, fdPtr
             if (n == FAIL) {
                 sprintf(buffer, "%d,%d,%d,%d", FAIL, errno, h_errno, n);
@@ -260,7 +260,7 @@ void *workerThread(void *newSocket_FD){
             break;
 
 }    n = write(*sockfd, buffer, (strlen(buffer)+1) );                                                // Send Server response back to client
-    printf("value of n: %d\n", n);
+    //printf("value of n: %d\n", n);
     if ( n < 0 ) {
         fprintf(stderr,"Thread : %lu fails to write to socket\n", pthread_self());
     }
@@ -287,27 +287,34 @@ int ex_netopen(fileDescriptor *newFd ){
 
 
 int canOpen(fileDescriptor *newFd ){
-    int i = 0;
+
+    int i;
     for (i=0; i < FD_TABLE_SIZE; i++) {
+
         if (strcmp(FD_Table[i].filePath, newFd->filePath) == 0){
-            if(FD_Table[i].fMode == TRANSACTION) return FALSE;
-            switch (newFd->fileFlags) {
- 
-                case O_RDONLY:                                                      // If client wants to read, as long as file isnt opened in transcation mode, it can open                                             
-                break;
 
-                case O_WRONLY:                                                         // Can be opened as long as no file descriptor has been assigned O_WRONLY or O_RDWR
-                if(FD_Table[i].fMode==EXCLUSIVE && (FD_Table[i].fileFlags == O_WRONLY || FD_Table[i].fileFlags == O_RDWR)) return FALSE;
-                break;
-
-                case O_RDWR:                                                         // Can be opened as long as no file descriptor has been assigned O_WRONLY or O_RDWR
-                if(FD_Table[i].fMode==EXCLUSIVE && (FD_Table[i].fileFlags == O_WRONLY || FD_Table[i].fileFlags == O_RDWR)) return FALSE;
-                break;
-
-                default:
-                errno = EINVAL;
-                break;
-            }
+	    // currently open or attempting in Tr
+            if(FD_Table[i].fMode == TRANSACTION || newFd->fMode == TRANSACTION){
+		return FALSE;
+	    }
+	    // currently open in Un+W
+	    if(FD_Table[i].fMode == UNRESTRICTED && (FD_Table[i].fileFlags == O_WRONLY || FD_Table[i].fileFlags == O_RDWR)){
+		// attempting in Ex+W
+		if(newFd->fMode == EXCLUSIVE && (newFd->fileFlags == O_WRONLY || newFd->fileFlags == O_RDWR)){
+			return FALSE;
+		}
+	    }
+	    // currently open in Ex+W
+	    if(FD_Table[i].fMode == EXCLUSIVE && (FD_Table[i].fileFlags == O_WRONLY || FD_Table[i].fileFlags == O_RDWR)){
+		// attempting in Un+W
+		if(newFd->fMode == UNRESTRICTED && (newFd->fileFlags == O_WRONLY || newFd->fileFlags == O_RDWR)){
+			return FALSE;
+		}
+		// attempting in Ex+W
+		if(newFd->fMode == EXCLUSIVE && (newFd->fileFlags == O_WRONLY || newFd->fileFlags == O_RDWR)){
+			return FALSE;
+		}
+	    }
         }
     }
     return TRUE;
@@ -361,8 +368,8 @@ int deleteFD(int netFD){
 int ex_netread(int fd, ssize_t nbyte, char *readBuffer){
     int n = -1;
    int i=(fd/-5)-1;
-   printf("Makes it here netread\n");
-    printf("LocalFD: %d\n", FD_Table[i].localFD);
+   //printf("Makes it here netread\n");
+    //printf("LocalFD: %d\n", FD_Table[i].localFD);
     if(i<FD_TABLE_SIZE && i>=0){
         if(FD_Table[i].fileFlags==O_WRONLY){
             errno = EBADF;
@@ -384,8 +391,8 @@ int ex_netread(int fd, ssize_t nbyte, char *readBuffer){
 int ex_netwrite(int fd, char * readBuffer, ssize_t nbyte){
     int n = -1;
    int i=(fd/-5)-1;
-   printf("Makes it here netwrite\n");
-    printf("LocalFD: %d\n", FD_Table[i].localFD);
+   //printf("Makes it here netwrite\n");
+    //printf("LocalFD: %d\n", FD_Table[i].localFD);
     if(i<FD_TABLE_SIZE && i>=0){
         if(FD_Table[i].fileFlags==O_RDONLY){
             errno = EBADF;

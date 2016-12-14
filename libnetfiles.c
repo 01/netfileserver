@@ -67,7 +67,7 @@ int netserverinit(char *hostname, int filemode){
     int sockfd = -1;
     char buffer[BUFFER_SIZE] = "";
 
-    errno = 0;																								
+    errno =  0;		
     h_errno = 0;
 
 
@@ -109,7 +109,7 @@ int netserverinit(char *hostname, int filemode){
     bzero(buffer, BUFFER_SIZE);
     sprintf(buffer, "%d,0,0,0", 1);
 
-    printf("netserverinit: send to clientConn - \"%s\"\n", buffer);
+    //printf("netserverinit: send to clientConn - \"%s\"\n", buffer);
     n = write(sockfd, buffer, strlen(buffer));
     if ( n < 0 ) {
 
@@ -120,7 +120,7 @@ int netserverinit(char *hostname, int filemode){
 
     bzero(buffer, BUFFER_SIZE);
     n = read(sockfd, buffer, BUFFER_SIZE-1);                                                    // Reads result, *(int *) 
-	printf("Ends up here%d\n", n);
+	//printf("Ends up here%d\n", n);
     if ( n < 0 ) {
         h_errno = ECOMM;  
         printf("Failed to read from socket\n");
@@ -151,11 +151,18 @@ int netopen(const char *pathname, int flags)
     h_errno = 0;
 
     if (pathname == NULL || strlen(pathname)<1) {
-        printf("Pathname is Invalid");
+        printf("Pathname is Invalid\n");
         errno = EINVAL;  
         return FAIL;
     } 
-    printf("netopen: pathname= %s, flags= %d\n", pathname, flags);
+
+    if(flags != O_RDONLY && flags != O_WRONLY && flags != O_RDWR){
+	printf("Invalid flags argument\n");
+	errno = EINVAL;
+	return FAIL;
+    }
+
+    //printf("netopen: pathname= %s, flags= %d\n", pathname, flags);
 
   /* if ( isNetSERVER_CONNInitialized( NET_OPEN ) != TRUE ) {
         errno = EPERM;  // 1 = Operation not permitted
@@ -174,7 +181,7 @@ int netopen(const char *pathname, int flags)
     sprintf(buffer, "%d,%d,%d,%s", NET_OPEN, clientConn.fMode, flags, pathname);
 
 
-    printf("netopen: send to SERVER_CONN - \"%s\"\n", buffer);
+    //printf("netopen: send to SERVER_CONN - \"%s\"\n", buffer);
     n = write(sockfd, buffer, strlen(buffer));
     if ( n < 0 ) {
         fprintf(stderr, "netopen: failed to write cmd to clientConn.  n= %d\n", n);
@@ -191,7 +198,7 @@ int netopen(const char *pathname, int flags)
 
     close(sockfd);  
 
-    printf("netopen: received from SERVER_CONN - \"%s\"\n", buffer);
+    //printf("netopen: received from SERVER_CONN - \"%s\"\n", buffer);
 
 
     
@@ -247,7 +254,7 @@ extern int netclose(int fd){
 
     bzero(buffer, BUFFER_SIZE);
     n = read(sockfd, buffer, BUFFER_SIZE-1);                                                    // Reads result, *(int *) 
-    printf("Ends up here%d\n", n);
+    //printf("Ends up here%d\n", n);
     if ( n < 0 ) {
         h_errno = ECOMM;  
         printf("Failed to read from socket\n");
@@ -271,7 +278,7 @@ extern ssize_t netread(int fildes, void *buf, size_t nbyte){
     char buffer[BUFFER_SIZE];
     errno = 0;
     h_errno = 0;
-    printf("Makes it here netread\n");
+    //printf("Makes it here netread\n");
     if(fildes >= 0){
         errno = EBADF;
         return FAILURE;
@@ -302,8 +309,8 @@ extern ssize_t netread(int fildes, void *buf, size_t nbyte){
 
     bzero(buffer, BUFFER_SIZE);
     n = read(sockfd, buffer, BUFFER_SIZE-1);                                                    // Reads result, *(int *) 
-    printf("Ends up here%d\n", n);
-    printf("buffer: %s\n", buffer);
+    //printf("Ends up here%d\n", n);
+    //printf("buffer: %s\n", buffer);
     if ( n < 0 ) {
         h_errno = ECOMM;  
         printf("Failed to read from socket\n");
@@ -315,9 +322,9 @@ extern ssize_t netread(int fildes, void *buf, size_t nbyte){
 
     sscanf(buffer, "%d,%d,%d", &n, &netFd, &h_errno);  
     strncpy(stringBuf, buffer+strlen(buffer)-nbyte, nbyte);
-    printf("%d %d %d %s\n", n, netFd, h_errno, stringBuf);
+    //printf("%d %d %d %s\n", n, netFd, h_errno, stringBuf);
     if(n == FAIL) return FAIL;
-    else printf("String from Read : %s\n", stringBuf);
+    //else printf("String from Read : %s\n", stringBuf);
 
 
     return netFd; 
@@ -333,7 +340,7 @@ extern ssize_t netwrite(int fildes, const void *buf, size_t nbyte){
     char buffer[BUFFER_SIZE];
     errno = 0;
     h_errno = 0;
-    printf("Makes it here netwrite\n");
+    //printf("Makes it here netwrite\n");
     if(fildes >= 0){
         errno = EBADF;
         return FAILURE;
@@ -364,7 +371,7 @@ extern ssize_t netwrite(int fildes, const void *buf, size_t nbyte){
 
     bzero(buffer, BUFFER_SIZE);
     n = read(sockfd, buffer, BUFFER_SIZE-1);                                                    // Reads result, *(int *) 
-    printf("Ends up here%d\n", n);
+    //printf("Ends up here%d\n", n);
     if ( n < 0 ) {
         h_errno = ECOMM;  
         printf("Failed to read from socket\n");

@@ -23,12 +23,12 @@ int main(){
 	netfd2 = netopen("file2.txt", O_WRONLY);
 	printf("netopen returns: %d\n", netfd2);
 	
-	bytesread = netread(netfd1, buffer, 50);
-	printf("bytes read: %d\n", bytesread);
+	bytesread = netread(netfd1, buffer, 120);
+	printf("netread returns: %d\n", bytesread);
 	printf("buffer: %s\n", buffer);
 
-	byteswritten = netwrite(netfd2, buffer, 40);
-	printf("bytes written: %d\n", byteswritten);
+	byteswritten = netwrite(netfd2, buffer, 70);
+	printf("netwrite returns: %d\n", byteswritten);
 	
 	a = netclose(netfd1);
 	printf("netclose returns: %d\n", a);
